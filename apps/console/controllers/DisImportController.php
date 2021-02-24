@@ -10,8 +10,6 @@ use common\context\application\services\processor\product\ProductProcessorInterf
 use common\infrastructure\log\ApplicationLoggerInterface;
 use console\components\import\DisComponentInterface;
 use console\controllers\log\ConsoleStdoutLogTrait;
-use Exception;
-use GuzzleHttp\Exception\GuzzleException;
 use yii\base\Module;
 use yii\console\Controller;
 use yii\helpers\Json;
@@ -25,6 +23,10 @@ class DisImportController extends Controller
     use ConsoleStdoutLogTrait;
 
     private ProductProcessorInterface $productProcessor;
+    private ApplicationLoggerInterface $logger;
+    private DisComponentInterface $dis;
+    private ProductImportVersionInterface $importVersion;
+    private ProductImportVersionRepositoryInterface $importVersionRepository;
 
     /**
      * @inheritDoc
@@ -32,20 +34,24 @@ class DisImportController extends Controller
     public function __construct(
         string $id,
         Module $module,
-        private ApplicationLoggerInterface $logger,
-        private DisComponentInterface $dis,
-        private ProductImportVersionInterface $importVersion,
-        private ProductImportVersionRepositoryInterface $importVersionRepository,
+        ApplicationLoggerInterface $logger,
+        DisComponentInterface $disComponent,
+        ProductImportVersionInterface $importVersion,
+        ProductImportVersionRepositoryInterface $importVersionRepository,
         array $config = []
     ) {
         parent::__construct($id, $module, $config);
+        $this->logger = $logger;
+        $this->dis = $disComponent;
+        $this->importVersion = $importVersion;
+        $this->importVersionRepository = $importVersionRepository;
     }
 
 
     /**
      * Method actionProducts
      * @param ProductProcessorInterface $productProcessor
-     * @throws GuzzleException
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function actionProducts(ProductProcessorInterface $productProcessor): void
     {
@@ -70,7 +76,7 @@ class DisImportController extends Controller
             foreach ($items as $item) {
                 try {
                     $productProcessor->process($item);
-                } catch (Exception $e) {
+                } catch (\Exception $e) {
                     $this->logger->error(
                         'Failed to process product!',
                         [
@@ -83,6 +89,7 @@ class DisImportController extends Controller
 
             $pageCount = $req->getHeader('x-pagination-page-count')[0] ?? null;
             $this->info("Complete page: $currentPage of $pageCount");
+            $req = null;
         } while ($req && $pageCount && $pageCount > $currentPage);
 
         $this->info('Finish sync products');
